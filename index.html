@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>염기서열 → 단백질 3D 구조</title>
+<style>
+  :root{
+    --ink:#12181f; --paper:#f6f7f4; --line:#d7dbd2; --muted:#5c6670;
+    --accent:#2f7d6b; --accent-2:#c65d3b; --drug:#e8552d; --recep:#3a6ea5;
+    --sickle:#a8324a;
+    --a:#e8b04b; --t:#5a8f6f; --c:#c65d3b; --g:#3a6ea5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:"Pretendard","Noto Sans KR",system-ui,-apple-system,sans-serif;line-height:1.5}
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 18px 60px}
+  header{border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:20px}
+  .eyebrow{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{font-size:25px;margin:6px 0 4px;font-weight:800}
+  header p{margin:0;color:var(--muted);font-size:14px}
+  .grid{display:grid;grid-template-columns:1fr;gap:20px}
+  @media(min-width:900px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr)}}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px}
+  label.field{display:block;font-size:13px;font-weight:700;margin-bottom:8px}
+  textarea,input[type=text]{width:100%;padding:11px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;border:1px solid var(--line);border-radius:8px;background:#fbfcfa;color:var(--ink);letter-spacing:.5px}
+  textarea{min-height:110px;resize:vertical}
+  textarea:focus,input:focus{outline:2px solid var(--accent);border-color:var(--accent)}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+  button{font:inherit;font-weight:700;font-size:13px;cursor:pointer;border:1px solid var(--ink);border-radius:8px;padding:9px 14px;background:var(--ink);color:#fff}
+  button.ghost{background:transparent;color:var(--ink)}
+  button.ghost:hover{background:#eef0ea}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .hint{font-size:12px;color:var(--muted)}
+  .divider{height:1px;background:var(--line);margin:14px 0}
+  .modeswitch{display:flex;gap:6px;margin-bottom:14px}
+  .modeswitch button{flex:1;background:#fff;color:var(--muted);border:1px solid var(--line);padding:9px 6px;font-size:12.5px}
+  .modeswitch button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .frame-toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .frame-toggle button{border:none;border-radius:0;background:transparent;color:var(--muted);padding:7px 11px}
+  .frame-toggle button.on{background:var(--accent);color:#fff}
+  .strip{overflow-x:auto;padding:10px 0 4px;white-space:nowrap}
+  .codon{display:inline-flex;flex-direction:column;align-items:center;margin-right:6px}
+  .codon .nt{font-family:ui-monospace,monospace;font-weight:700;font-size:14px;letter-spacing:1px}
+  .codon .aa{margin-top:3px;font-size:11px;font-weight:700;color:#fff;padding:2px 6px;border-radius:5px;background:var(--muted)}
+  .codon.stop .aa{background:#333}
+  .nt .a{color:var(--a)}.nt .t{color:var(--t)}.nt .c{color:var(--c)}.nt .g{color:var(--g)}
+  .aaseq{font-family:ui-monospace,monospace;font-size:13px;word-break:break-all;background:#fbfcfa;border:1px solid var(--line);border-radius:8px;padding:10px;line-height:1.7}
+  .stats{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:13px}
+  .stats b{color:var(--accent)}
+  #viewer{position:relative;width:100%;height:430px;border:1px solid var(--line);border-radius:8px;background:#0e1418;overflow:hidden}
+  #viewer .placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#8aa;font-size:13px;text-align:center;padding:20px}
+  .vbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
+  select{font:inherit;font-size:13px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .status{margin-top:10px;font-size:13px;min-height:20px}
+  .status.err{color:var(--accent-2);font-weight:600}
+  .status.ok{color:var(--accent);font-weight:600}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:20px;border:1px solid var(--line);color:var(--muted);margin-left:6px}
+  #dropZone{border:2px dashed var(--line);border-radius:10px;padding:26px 14px;text-align:center;color:var(--muted);font-size:13px;background:#fbfcfa;cursor:pointer}
+  #dropZone.hot{border-color:var(--accent);background:#eef6f3;color:var(--accent)}
+  details{margin-top:16px;font-size:13px;color:var(--muted)}
+  summary{cursor:pointer;font-weight:700;color:var(--ink)}
+  .callout{background:#fff6ef;border:1px solid #e8cbb8;border-radius:8px;padding:11px 12px;font-size:12.5px;color:#7a4a2f;margin-top:12px}
+  ol{padding-left:18px;margin:8px 0}
+  .presetgrid{display:grid;grid-template-columns:1fr;gap:6px;margin-top:8px}
+  .presetgrid button{text-align:left;background:#fff;color:var(--ink);border:1px solid var(--line);font-weight:600;font-size:12.5px;padding:8px 11px;line-height:1.35}
+  .presetgrid button:hover{background:#eef6f3;border-color:var(--accent)}
+  .presetgrid b{color:var(--accent)}
+  .presetgrid button.sk b{color:var(--sickle)}
+  .presetgrid button.sk:hover{background:#fbeef1;border-color:var(--sickle)}
+  .presetgrid span{display:block;font-weight:400;font-size:11.5px;color:var(--muted);margin-top:2px}
+  .grouplabel{font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--muted);margin-top:14px;text-transform:uppercase}
+  #ligandPanel{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fbfcfa;display:none}
+  #mutPanel{margin-top:12px;padding:12px;border:1px solid #e6c3cd;border-radius:10px;background:#fbeef1;display:none}
+  .lgrid{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .lgrid label{font-size:12px;color:var(--muted);font-weight:700}
+  .swatch{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+  .warn{background:#fdf3f0;border:1px solid #e6c3b8;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#8a3b25;margin-top:10px}
+  .skbox{background:#fbeef1;border:1px solid #e6c3cd;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#7a2c3d;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">DNA · RNA → Protein → 3D</div>
+    <h1>염기서열 단백질 구조 뷰어</h1>
+    <p>염기서열을 아미노산으로 번역하고, 3차원 구조를 회전·확대해 살펴봅니다.</p>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="modeswitch">
+        <button id="tabSeq" class="on" data-mode="seq">① 서열 접기</button>
+        <button id="tabPdb" data-mode="pdb">② PDB ID</button>
+        <button id="tabFile" data-mode="file">③ 파일 열기</button>
+      </div>
+
+      <div id="panelSeq">
+        <label class="field" for="seqInput">염기서열 <span class="hint">(A·T(U)·C·G — DNA/RNA 모두)</span></label>
+        <textarea id="seqInput" placeholder="예) ATGCAGATTTTCGTG..."></textarea>
+        <div class="row">
+          <span class="hint">읽기틀:</span>
+          <div class="frame-toggle" id="frameBox">
+            <button class="on" data-f="0">+1</button><button data-f="1">+2</button><button data-f="2">+3</button>
+          </div>
+          <button class="ghost" id="exampleBtn">예시(유비퀴틴)</button>
+        </div>
+        <div class="divider"></div>
+        <div id="translation"></div>
+      </div>
+
+      <div id="panelPdb" style="display:none">
+        <label class="field" for="pdbIdInput">PDB ID <span class="hint">(실험으로 밝혀진 실제 구조)</span></label>
+        <input type="text" id="pdbIdInput" value="1UBQ" maxlength="4" placeholder="1UBQ">
+
+        <div class="grouplabel">기본 예시</div>
+        <div class="presetgrid">
+          <button class="preset" data-id="1UBQ"><b>1UBQ</b> 유비퀴틴<span>76아미노산의 작은 단백질. 가장 빠르게 뜹니다.</span></button>
+          <button class="preset" data-id="4HHB"><b>4HHB</b> 헤모글로빈<span>산소를 운반하는 4개 사슬의 다량체.</span></button>
+          <button class="preset" data-id="1GFL"><b>1GFL</b> 녹색형광단백질(GFP)<span>통 모양(β-barrel) 구조의 대표 사례.</span></button>
+        </div>
+
+        <div class="grouplabel">GLP-1 · 인크레틴 수용체</div>
+        <div class="presetgrid">
+          <button class="preset lig" data-id="7RGP" data-rec="R" data-lig="P">
+            <b>7RGP</b> GLP-1R + 티르제파타이드
+            <span>수용체 사슬 R · 약물 사슬 P (2.9 Å, cryo-EM)</span>
+          </button>
+          <button class="preset lig" data-id="7RBT" data-rec="R" data-lig="P">
+            <b>7RBT</b> GIPR + 티르제파타이드
+            <span>같은 약물이 다른 수용체에 결합 — 7RGP와 비교용</span>
+          </button>
+          <button class="preset lig" data-id="7KI0" data-rec="R" data-lig="P">
+            <b>7KI0</b> GLP-1R + 세마글루타이드
+            <span>단일 수용체 작용제. 티르제파타이드와 비교용</span>
+          </button>
+          <button class="preset lig" data-id="7RA3" data-rec="R" data-lig="P">
+            <b>7RA3</b> GIPR + 천연 GIP
+            <span>천연 호르몬 vs 약물 비교의 기준점</span>
+          </button>
+          <button class="preset" data-id="7RG9">
+            <b>7RG9</b> GLP-1R (아포, 결합 전)
+            <span>약물이 붙기 전 상태 — 결합 전후 비교용</span>
+          </button>
+        </div>
+
+        <div class="grouplabel" style="color:#a8324a">낫모양 적혈구 빈혈증 — 아미노산 하나의 차이</div>
+        <div class="presetgrid">
+          <button class="preset sk" data-id="1HHO">
+            <b>1HHO</b> 정상 헤모글로빈 (산소 결합)
+            <span>건강한 적혈구가 산소를 나르는 형태.</span>
+          </button>
+          <button class="preset sk" data-id="2HHB">
+            <b>2HHB</b> 정상 헤모글로빈 (산소 없음, HbA)
+            <span>2HBS와 짝을 이루는 정상 비교군.</span>
+          </button>
+          <button class="preset sk" data-id="2HBS" data-mut="6">
+            <b>2HBS</b> 낫모양 헤모글로빈 (HbS) 섬유
+            <span>β6 Glu→Val 돌연변이가 이웃 분자와 엉겨 섬유를 이룸.</span>
+          </button>
+        </div>
+        <p class="hint" style="margin-top:10px">2HBS를 불러오면 아래 <b>돌연변이 자리 강조</b>가 자동으로 켜져, 6번 자리(발린)가 어떻게 이웃 헤모글로빈과 달라붙는지 보여줍니다.</p>
+      </div>
+
+      <div id="panelFile" style="display:none">
+        <label class="field">PDB 파일 열기 <span class="hint">(인터넷 없이 100% 동작)</span></label>
+        <div id="dropZone">.pdb 또는 .cif 파일을 여기에 끌어다 놓거나<br><b>클릭해서 선택</b></div>
+        <input type="file" id="fileInput" accept=".pdb,.ent,.cif,.txt" style="display:none">
+        <div class="callout">
+          <b>파일 구하는 법</b>
+          <ol>
+            <li><b>rcsb.org</b> 접속 → 검색창에 <code>2HBS</code> 입력</li>
+            <li>우측 <b>Download Files</b> → <b>PDB Format</b> 클릭</li>
+            <li>내려받은 <code>2hbs.pdb</code>를 위 상자에 끌어다 놓기</li>
+          </ol>
+          수업 전에 미리 받아두면 학교 인터넷이 느려도 안전합니다.
+        </div>
+        <div class="divider"></div>
+        <label class="field" for="pdbTextInput">또는 PDB 텍스트 붙여넣기</label>
+        <textarea id="pdbTextInput" placeholder="ATOM      1  N   MET A   1 ..." style="min-height:80px"></textarea>
+      </div>
+
+      <div class="row" style="margin-top:16px">
+        <button id="goBtn">3D 구조 보기 →</button>
+      </div>
+      <div id="statusBox" class="status"></div>
+    </div>
+
+    <div class="card">
+      <label class="field">3D 구조 <span class="tag" id="srcTag">대기 중</span></label>
+      <div id="viewer"><div class="placeholder">왼쪽에서 입력하고 ‘3D 구조 보기’를 누르세요</div></div>
+      <div class="vbar">
+        <span class="hint">표현:</span>
+        <select id="styleSel">
+          <option value="cartoon-spectrum">리본(무지개)</option>
+          <option value="cartoon-ss">리본(2차구조)</option>
+          <option value="cartoon-chain">리본(사슬별)</option>
+          <option value="stick">막대(원자)</option>
+          <option value="sphere">공간채움</option>
+        </select>
+        <button class="ghost" id="spinBtn">회전 ▶︎/❚❚</button>
+        <button class="ghost" id="resetBtn">중심 맞추기</button>
+      </div>
+
+      <div id="ligandPanel">
+        <label class="field" style="margin-bottom:6px">
+          약물(리간드) 강조
+          <span class="hint" style="font-weight:400">수용체는 리본, 약물은 덩어리로</span>
+        </label>
+        <div class="lgrid">
+          <label>수용체</label>
+          <select id="recSel"></select>
+          <label>약물</label>
+          <select id="ligSel"></select>
+          <select id="ligStyleSel">
+            <option value="sphere">공간채움</option>
+            <option value="stick">막대</option>
+          </select>
+          <label style="font-weight:400;color:var(--ink)">
+            <input type="checkbox" id="hideOther" checked> 나머지 사슬 숨기기
+          </label>
+        </div>
+        <div class="row">
+          <button id="hlBtn">강조 적용</button>
+          <button class="ghost" id="zoomLigBtn">결합 부위 확대</button>
+          <button class="ghost" id="hlOffBtn">해제</button>
+        </div>
+        <p class="hint" style="margin-top:8px">
+          <span class="swatch" style="background:var(--recep)"></span>수용체 &nbsp;
+          <span class="swatch" style="background:var(--drug)"></span>약물
+        </p>
+      </div>
+
+      <div id="mutPanel">
+        <label class="field" style="margin-bottom:6px">
+          돌연변이 자리 강조 <span class="hint" style="font-weight:400">β사슬 6번 아미노산(HbS = 발린)</span>
+        </label>
+        <div class="lgrid">
+          <label>잔기 번호</label>
+          <input type="text" id="mutResi" value="6" style="width:70px">
+          <label>표현</label>
+          <select id="mutStyleSel">
+            <option value="sphere">공간채움</option>
+            <option value="stick">막대</option>
+          </select>
+          <label style="font-weight:400;color:var(--ink)">
+            <input type="checkbox" id="mutLabel" checked> 이름표 붙이기
+          </label>
+        </div>
+        <div class="row">
+          <button id="mutBtn" style="background:#a8324a;border-color:#a8324a">6번 자리 강조</button>
+          <button class="ghost" id="mutZoomBtn">그 자리로 확대</button>
+          <button class="ghost" id="mutOffBtn">해제</button>
+        </div>
+        <p class="hint" style="margin-top:8px">
+          <span class="swatch" style="background:#a8324a"></span>6번 아미노산(HbS에서는 발린) — 이 소수성 곁가지가 이웃 헤모글로빈의 주머니에 끼워지며 섬유가 자랍니다.
+        </p>
+      </div>
+
+      <div class="hint" style="margin-top:8px">마우스 드래그로 회전 · 스크롤로 확대 · 우클릭 드래그로 이동</div>
+    </div>
+  </div>
+
+  <details open>
+    <summary>낫모양 적혈구 빈혈증으로 수업하기 — 아미노산 하나가 바꾸는 모든 것</summary>
+    <div class="skbox">
+      <b>딱 한 글자 차이입니다.</b>
+      정상 헤모글로빈(HbA)과 낫모양 헤모글로빈(HbS)은 β사슬 146개 아미노산 중 <b>6번 하나</b>가 다릅니다.
+      DNA에서는 코돈 <b>GAG → GTG</b>(A→T) 단 한 글자, 아미노산으로는 <b>글루탐산(친수성) → 발린(소수성)</b>.
+      이 작은 변화 하나가 → 단백질이 서로 엉기고 → 적혈구가 낫 모양으로 변형되고 → 혈관을 막습니다.
+      “서열 → 구조 → 기능”을 이보다 잘 보여주는 사례는 드뭅니다.
+    </div>
+    <p><b>비교 수업 설계 예시</b></p>
+    <p>① <b>2HHB</b>(정상 HbA) ↔ <b>2HBS</b>(낫모양 HbS) — 겉모습(리본)은 거의 같다. “그런데 왜 한쪽만 병을 일으킬까?”</p>
+    <p>② <b>2HBS 불러오기 → 6번 자리 강조</b> — 발린 곁가지가 이웃 분자에 끼워지는 지점을 눈으로 확인. 이 접촉이 섬유를 만든다.</p>
+    <p>③ <b>서열 탭에서 직접 실험</b> — β글로빈 앞부분 서열을 넣어 번역해 보고, 6번 코돈 GAG를 GTG로 한 글자 바꾸면 아미노산이 어떻게 달라지는지 확인.</p>
+    <div class="warn">
+      <b>구조로 보이는 것과 안 보이는 것.</b>
+      2HBS는 발린이 이웃 분자와 접촉하는 ‘분자 수준’을 보여줍니다. 다만 <b>적혈구가 낫 모양으로 휘는 것은 이 뷰어로는 보이지 않습니다</b> —
+      그것은 수백만 개의 헤모글로빈 섬유가 세포를 밀어낸 결과이기 때문입니다. 분자 → 섬유 → 세포로 이어지는 규모의 차이를 학생과 함께 짚어 주세요.
+    </div>
+    <div class="skbox" style="background:#eef3e7;border-color:#cfe0c2;color:#2b4d2f">
+      <b>수업 톤 제안.</b> 이 주제는 실제 환자가 있는 유전 질환입니다. 증상의 고통이나 인종·혈통 관련 언급은 신중히 다루고,
+      “아미노산 하나의 구조 변화가 기능을 어떻게 바꾸는가”라는 과학 원리에 초점을 맞추시길 권합니다.
+    </div>
+  </details>
+
+  <details>
+    <summary>GLP-1 구조로 수업할 때 — 꼭 짚어야 할 한 가지</summary>
+    <div class="warn">
+      <b>지방산 사슬은 이 구조 파일에서 보이지 않습니다.</b>
+      티르제파타이드에 붙은 지방산 사슬과 C말단 일부 잔기는 cryo-EM 지도에서
+      관찰되지 않아 좌표에 포함되지 않았습니다. 논문의 “지방산이 수용체와 상호작용한다”는 설명은
+      구조 관찰이 아니라 <b>분자동역학(MD) 시뮬레이션</b>으로 얻은 결과입니다.
+      “구조로 확인된 것”과 “계산으로 추정한 것”을 구분해 주세요.
+    </div>
+    <p>① <b>7RGP</b> ↔ <b>7RBT</b> — 같은 약물, 다른 수용체.</p>
+    <p>② <b>7KI0</b> ↔ <b>7RGP</b> — 같은 수용체, 다른 약물.</p>
+    <p>③ <b>7RG9</b> ↔ <b>7RGP</b> — 약물이 붙기 전과 후.</p>
+  </details>
+
+  <details>
+    <summary>수업 전 알아둘 점 — ‘번역’은 계산이고 ‘접힘’은 예측입니다</summary>
+    <p><b>1단계 번역은 정확합니다.</b> 코돈 3개 → 아미노산은 유전암호표대로 결정됩니다. 종결코돈(TAA·TAG·TGA)에서 멈춥니다.</p>
+    <p><b>2단계 접힘은 AI 예측입니다.</b> ① 탭은 Meta의 ESMFold 공개 서버에 서열을 보내 예측 구조를 받아옵니다. 실험 구조가 아니며, 짧은 펩타이드는 신뢰도가 낮습니다. 서버 한계는 약 400잔기입니다.</p>
+    <p><b>②·③ 탭은 실험 구조입니다.</b> RCSB에 등록된 실제 실험 결과이므로 예측이 아닙니다.</p>
+    <p><b>화면이 안 뜨면?</b> 미리보기 창은 외부 데이터 요청을 막는 경우가 있습니다. 이 파일을 내려받아 <b>크롬에서 직접 열면</b> 대부분 해결되고, 그래도 안 되면 <b>③ 파일 열기</b> 탭이 언제나 동작합니다.</p>
+  </details>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+
+  const CODON={TTT:'F',TTC:'F',TTA:'L',TTG:'L',CTT:'L',CTC:'L',CTA:'L',CTG:'L',ATT:'I',ATC:'I',ATA:'I',ATG:'M',GTT:'V',GTC:'V',GTA:'V',GTG:'V',TCT:'S',TCC:'S',TCA:'S',TCG:'S',CCT:'P',CCC:'P',CCA:'P',CCG:'P',ACT:'T',ACC:'T',ACA:'T',ACG:'T',TAT:'Y',TAC:'Y',TAA:'*',TAG:'*',CAT:'H',CAC:'H',CAA:'Q',CAG:'Q',AAT:'N',AAC:'N',AAA:'K',AAG:'K',GAT:'D',GAC:'D',GAA:'E',GAG:'E',TGT:'C',TGC:'C',TGA:'*',TGG:'W',CGT:'R',CGC:'R',CGA:'R',CGG:'R',AGT:'S',AGC:'S',AGA:'R',AGG:'R',GGT:'G',GGC:'G',GGA:'G',GGG:'G',GCT:'A',GCC:'A',GCA:'A',GCG:'A'};
+  const REV={A:'GCT',R:'CGT',N:'AAT',D:'GAT',C:'TGT',Q:'CAA',E:'GAA',G:'GGT',H:'CAT',I:'ATT',L:'CTT',K:'AAA',M:'ATG',F:'TTT',P:'CCT',S:'TCT',T:'ACT',W:'TGG',Y:'TAT',V:'GTT'};
+  const AA3={A:'Ala',R:'Arg',N:'Asn',D:'Asp',C:'Cys',Q:'Gln',E:'Glu',G:'Gly',H:'His',I:'Ile',L:'Leu',K:'Lys',M:'Met',F:'Phe',P:'Pro',S:'Ser',T:'Thr',W:'Trp',Y:'Tyr',V:'Val'};
+
+  let frame = 0, mode = 'seq', viewer = null, spinning = false;
+  let currentPDB = '', wantRec = '', wantLig = '', wantMut = '';
+
+  const panels = {seq:$('panelSeq'), pdb:$('panelPdb'), file:$('panelFile')};
+  const tabs   = {seq:$('tabSeq'),   pdb:$('tabPdb'),   file:$('tabFile')};
+  Object.keys(tabs).forEach(k=>{
+    tabs[k].addEventListener('click', ()=>{
+      mode = k;
+      Object.keys(tabs).forEach(j=>{
+        tabs[j].classList.toggle('on', j===k);
+        panels[j].style.display = (j===k) ? 'block' : 'none';
+      });
+    });
+  });
+
+  const frameBox = $('frameBox');
+  frameBox.addEventListener('click', e=>{
+    const btn = e.target.closest('button');
+    if(!btn || btn.dataset.f === undefined) return;
+    frame = parseInt(btn.dataset.f, 10);
+    Array.from(frameBox.querySelectorAll('button')).forEach(b=>{
+      b.classList.toggle('on', parseInt(b.dataset.f,10) === frame);
+    });
+    if($('seqInput').value.trim()) translate();
+  });
+  $('seqInput').addEventListener('input', ()=>{
+    if($('seqInput').value.trim()) translate();
+    else $('translation').innerHTML = '';
+  });
+
+  const clean = s => (s||'').toUpperCase().replace(/U/g,'T').replace(/[^ACGT]/g,'');
+
+  function translate(){
+    const raw = clean($('seqInput').value).slice(frame);
+    const codons = []; let aa = '';
+    for(let i=0; i+3<=raw.length; i+=3){
+      const c = raw.substr(i,3), a = CODON[c] || '?';
+      codons.push({c,a});
+      if(a === '*') break;
+      aa += a;
+    }
+    let strip = '<div class="strip">';
+    codons.slice(0,48).forEach(o=>{
+      const nt = o.c.split('').map(x=>'<span class="'+x.toLowerCase()+'">'+x+'</span>').join('');
+      strip += '<span class="codon '+(o.a==='*'?'stop':'')+'"><span class="nt">'+nt+'</span><span class="aa">'+(o.a==='*'?'STOP':o.a)+'</span></span>';
+    });
+    strip += '</div>';
+    if(codons.length > 48) strip += '<div class="hint">… 앞 48개만 표시 (전체 '+codons.length+'개 코돈)</div>';
+
+    $('translation').innerHTML =
+      '<label class="field">코돈 → 아미노산</label>' + strip +
+      '<label class="field" style="margin-top:14px">아미노산 서열</label>' +
+      '<div class="aaseq">' + (aa || '<span style="color:#c65d3b">번역할 코돈이 없습니다</span>') + '</div>' +
+      '<div class="stats"><span>길이 <b>'+aa.length+'</b> 잔기</span><span>추정 분자량 <b>'+mw(aa)+'</b> kDa</span><span>염기 <b>'+raw.length+'</b> nt</span></div>';
+    return aa;
+  }
+  function mw(aa){
+    const w={A:71.08,R:156.19,N:114.10,D:115.09,C:103.14,Q:128.13,E:129.12,G:57.05,H:137.14,I:113.16,L:113.16,K:128.17,M:131.19,F:147.18,P:97.12,S:87.08,T:101.10,W:186.21,Y:163.18,V:99.13};
+    let m = 18.02;
+    for(const ch of aa) m += (w[ch] || 110);
+    return (m/1000).toFixed(1);
+  }
+
+  $('exampleBtn').addEventListener('click', loadExample);
+  function loadExample(){
+    const ubi = 'MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG';
+    let dna = '';
+    for(const a of ubi) dna += REV[a];
+    dna += 'TAA';
+    $('seqInput').value = dna;
+    frame = 0;
+    Array.from(frameBox.querySelectorAll('button')).forEach(b=>{
+      b.classList.toggle('on', parseInt(b.dataset.f,10) === 0);
+    });
+    translate();
+  }
+
+  Array.from(document.querySelectorAll('.preset')).forEach(b=>{
+    b.addEventListener('click', ()=>{
+      $('pdbIdInput').value = b.dataset.id;
+      wantRec = b.dataset.rec || '';
+      wantLig = b.dataset.lig || '';
+      wantMut = b.dataset.mut || '';
+      run();
+    });
+  });
+
+  function setStatus(html, cls){
+    const el = $('statusBox');
+    el.className = 'status ' + (cls || '');
+    el.innerHTML = html;
+  }
+
+  let molPromise = null;
+  function ensureMol(){
+    if(window.$3Dmol) return Promise.resolve();
+    if(molPromise) return molPromise;
+    const srcs = [
+      'https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.4.2/3Dmol-min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.0.4/3Dmol-min.js',
+      'https://3Dmol.org/build/3Dmol-min.js'
+    ];
+    molPromise = new Promise((res, rej)=>{
+      let i = 0;
+      (function next(){
+        if(window.$3Dmol) return res();
+        if(i >= srcs.length) return rej(new Error('3Dmol 라이브러리를 불러오지 못했습니다.'));
+        const s = document.createElement('script');
+        s.src = srcs[i++];
+        s.onload = ()=> window.$3Dmol ? res() : next();
+        s.onerror = next;
+        document.head.appendChild(s);
+      })();
+    });
+    return molPromise;
+  }
+
+  function detectChains(pdb){
+    const counts = {};
+    pdb.split('\n').forEach(line=>{
+      if(line.indexOf('ATOM') !== 0) return;
+      const ch = line.charAt(21).trim() || '?';
+      counts[ch] = (counts[ch] || 0) + 1;
+    });
+    return counts;
+  }
+
+  function buildLigandPanel(pdb){
+    const counts = detectChains(pdb);
+    const chains = Object.keys(counts).sort();
+    const panel = $('ligandPanel');
+    if(chains.length < 2){ panel.style.display = 'none'; return; }
+    const rec = $('recSel'), lig = $('ligSel');
+    rec.innerHTML = ''; lig.innerHTML = '';
+    chains.forEach(c=>{
+      const label = c + '  (원자 ' + counts[c] + '개)';
+      rec.add(new Option(label, c));
+      lig.add(new Option(label, c));
+    });
+    const bySize = chains.slice().sort((a,b)=>counts[b]-counts[a]);
+    rec.value = (wantRec && chains.indexOf(wantRec) >= 0) ? wantRec : bySize[0];
+    lig.value = (wantLig && chains.indexOf(wantLig) >= 0) ? wantLig : bySize[bySize.length-1];
+    panel.style.display = 'block';
+  }
+
+  function renderStructure(data, fmt, tag){
+    const box = $('viewer');
+    box.innerHTML = '';
+    viewer = window.$3Dmol.createViewer(box, {backgroundColor:'#0e1418'});
+    viewer.addModel(data, fmt);
+    applyStyle();
+    viewer.zoomTo();
+    viewer.render();
+    $('srcTag').textContent = tag;
+    currentPDB = data;
+    buildLigandPanel(data);
+    // mutation panel: show for sickle presets (or any structure with β-like chains)
+    $('mutPanel').style.display = wantMut ? 'block' : 'none';
+    if(wantMut){
+      $('mutResi').value = wantMut;
+      applyMutation();
+    }
+  }
+
+  async function fetchPDB(id){
+    const lo = id.toLowerCase();
+    const mirrors = [
+      ['https://files.rcsb.org/download/'+id+'.pdb', 'pdb', 'RCSB'],
+      ['https://www.ebi.ac.uk/pdbe/entry-files/download/pdb'+lo+'.ent', 'pdb', 'PDBe'],
+      ['https://files.rcsb.org/download/'+id+'.cif', 'cif', 'RCSB(cif)']
+    ];
+    const errs = [];
+    for(const m of mirrors){
+      try{
+        const r = await fetch(m[0]);
+        if(!r.ok){ errs.push(m[2]+': '+r.status); continue; }
+        const t = await r.text();
+        if(t.indexOf('ATOM') >= 0 || t.indexOf('_atom_site') >= 0) return {data:t, fmt:m[1], name:m[2]};
+        errs.push(m[2]+': 내용 없음');
+      }catch(e){ errs.push(m[2]+': 차단됨'); }
+    }
+    throw new Error('구조 데이터를 받지 못했습니다 ('+errs.join(' / ')+'). 미리보기 창이 외부 요청을 막고 있을 가능성이 큽니다 — 이 파일을 내려받아 크롬에서 직접 열거나, ③ 파일 열기 탭을 사용하세요.');
+  }
+
+  $('goBtn').addEventListener('click', run);
+  async function run(){
+    const btn = $('goBtn');
+    btn.disabled = true;
+    try{
+      await ensureMol();
+      if(mode === 'pdb') await runPdb();
+      else if(mode === 'file') runFile();
+      else await runFold();
+    }catch(e){
+      setStatus('⚠︎ ' + (e.message || '문제가 발생했습니다.'), 'err');
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  async function runPdb(){
+    const id = ($('pdbIdInput').value || '').trim().toUpperCase().replace(/[^0-9A-Z]/g,'').slice(0,4);
+    if(id.length !== 4){ setStatus('PDB ID는 4자리입니다. 예: 2HBS', 'err'); return; }
+    setStatus('<span class="spinner"></span>'+id+' 구조를 찾는 중… (대형 복합체는 수십 초 걸릴 수 있습니다)');
+    const r = await fetchPDB(id);
+    renderStructure(r.data, r.fmt, '실제 구조 · ' + id);
+    let msg = '✓ '+id+' 불러오기 완료 ('+r.name+' · 실험 구조)';
+    if(wantMut) msg += ' — 6번 자리(발린)를 자동 강조했습니다.';
+    else if(wantLig) msg += ' — 아래 <b>약물 강조</b>를 눌러 보세요.';
+    setStatus(msg, 'ok');
+  }
+
+  function runFile(){
+    const t = $('pdbTextInput').value.trim();
+    if(!t){ setStatus('파일을 끌어다 놓거나, PDB 텍스트를 붙여넣어 주세요.', 'err'); return; }
+    const fmt = t.indexOf('_atom_site') >= 0 ? 'cif' : 'pdb';
+    wantRec = ''; wantLig = ''; wantMut = '';
+    renderStructure(t, fmt, '불러온 파일');
+    setStatus('✓ 파일 구조 표시 완료', 'ok');
+  }
+
+  async function runFold(){
+    const aa = translate();
+    if(!aa || aa.length < 8){ setStatus('서열이 너무 짧습니다(8잔기 이상 권장).', 'err'); return; }
+    if(aa.length > 400){ setStatus('ESMFold 공개 서버 한계(≈400잔기)를 넘었습니다.', 'err'); return; }
+    setStatus('<span class="spinner"></span>ESMFold 서버에서 구조 예측 중… (수십 초 소요)');
+    let pdb;
+    try{
+      const r = await fetch('https://api.esmatlas.com/foldSequence/v1/pdb/', {
+        method:'POST', headers:{'Content-Type':'text/plain'}, body: aa
+      });
+      if(!r.ok) throw new Error('서버 응답 ' + r.status);
+      pdb = await r.text();
+      if(pdb.indexOf('ATOM') < 0) throw new Error('예측 데이터를 받지 못했습니다.');
+    }catch(e){
+      setStatus('⚠︎ ESMFold 서버에 연결하지 못했습니다 ('+e.message+'). 미리보기 창의 보안 제한이거나 서버 혼잡입니다. 파일을 내려받아 크롬에서 직접 열어보시고, 그래도 안 되면 ②·③ 탭으로 실제 구조를 사용하세요.', 'err');
+      return;
+    }
+    wantRec = ''; wantLig = ''; wantMut = '';
+    renderStructure(pdb, 'pdb', '예측 구조 · ESMFold');
+    setStatus('✓ 예측 완료 — 실험 구조가 아닌 AI 예측입니다.', 'ok');
+  }
+
+  const dropZone = $('dropZone'), fileInput = $('fileInput');
+  dropZone.addEventListener('click', ()=> fileInput.click());
+  fileInput.addEventListener('change', e=>{
+    if(e.target.files && e.target.files[0]) readFile(e.target.files[0]);
+  });
+  ['dragenter','dragover'].forEach(ev=>{
+    dropZone.addEventListener(ev, e=>{ e.preventDefault(); dropZone.classList.add('hot'); });
+  });
+  ['dragleave','drop'].forEach(ev=>{
+    dropZone.addEventListener(ev, e=>{ e.preventDefault(); dropZone.classList.remove('hot'); });
+  });
+  dropZone.addEventListener('drop', e=>{
+    const f = e.dataTransfer.files[0];
+    if(f) readFile(f);
+  });
+  function readFile(f){
+    const r = new FileReader();
+    r.onload = async ()=>{
+      $('pdbTextInput').value = r.result;
+      setStatus('<span class="spinner"></span>'+f.name+' 읽는 중…');
+      try{
+        await ensureMol();
+        runFile();
+        $('srcTag').textContent = f.name;
+      }catch(e){ setStatus('⚠︎ ' + e.message, 'err'); }
+    };
+    r.readAsText(f);
+  }
+
+  $('styleSel').addEventListener('change', applyStyle);
+  function applyStyle(){
+    if(!viewer) return;
+    const v = $('styleSel').value;
+    viewer.setStyle({}, {});
+    if(v === 'cartoon-spectrum') viewer.setStyle({}, {cartoon:{color:'spectrum'}});
+    else if(v === 'cartoon-ss')  viewer.setStyle({}, {cartoon:{colorscheme:'ssJmol'}});
+    else if(v === 'cartoon-chain') viewer.setStyle({}, {cartoon:{colorfunc: a => ['#2f7d6b','#c65d3b','#3a6ea5','#e8b04b','#8a6db0'][((a.chain||'A').charCodeAt(0))%5]}});
+    else if(v === 'stick')  viewer.setStyle({}, {stick:{radius:0.15}});
+    else if(v === 'sphere') viewer.setStyle({}, {sphere:{scale:0.3}});
+    viewer.render();
+  }
+
+  // ---- ligand highlight ----
+  $('hlBtn').addEventListener('click', applyHighlight);
+  $('ligStyleSel').addEventListener('change', ()=>{ if(viewer) applyHighlight(); });
+  $('hideOther').addEventListener('change', ()=>{ if(viewer) applyHighlight(); });
+  function applyHighlight(){
+    if(!viewer) return;
+    const rec = $('recSel').value, lig = $('ligSel').value;
+    if(rec === lig){ setStatus('수용체와 약물 사슬이 같습니다. 다른 사슬을 골라 주세요.', 'err'); return; }
+    viewer.setStyle({}, {});
+    if(!$('hideOther').checked){
+      viewer.setStyle({}, {cartoon:{color:'#5c6670', opacity:0.45}});
+    }
+    viewer.setStyle({chain: rec}, {cartoon:{color:'#3a6ea5'}});
+    const style = ($('ligStyleSel').value === 'sphere')
+      ? {sphere:{scale:0.42, color:'#e8552d'}}
+      : {stick:{radius:0.32, color:'#e8552d'}};
+    viewer.setStyle({chain: lig}, style);
+    viewer.render();
+    setStatus('✓ 수용체(사슬 '+rec+') 리본 · 약물(사슬 '+lig+') 강조 표시', 'ok');
+  }
+  $('zoomLigBtn').addEventListener('click', ()=>{
+    if(!viewer) return;
+    viewer.zoomTo({chain: $('ligSel').value});
+    viewer.render();
+  });
+  $('hlOffBtn').addEventListener('click', ()=>{
+    if(!viewer) return;
+    applyStyle(); viewer.zoomTo(); viewer.render();
+    setStatus('강조를 해제했습니다.', '');
+  });
+
+  // ---- mutation-site highlight (sickle cell) ----
+  $('mutBtn').addEventListener('click', applyMutation);
+  $('mutStyleSel').addEventListener('change', ()=>{ if(viewer && $('mutPanel').style.display!=='none') applyMutation(); });
+  $('mutLabel').addEventListener('change', ()=>{ if(viewer && $('mutPanel').style.display!=='none') applyMutation(); });
+  function applyMutation(){
+    if(!viewer) return;
+    const resi = parseInt(($('mutResi').value||'6'),10);
+    if(!resi){ setStatus('잔기 번호를 숫자로 입력해 주세요.', 'err'); return; }
+    // faint whole structure, then spotlight the residue on every chain
+    viewer.setStyle({}, {cartoon:{color:'#5c6670', opacity:0.5}});
+    const sel = {resi: resi};
+    const style = ($('mutStyleSel').value === 'stick')
+      ? {stick:{radius:0.3, color:'#a8324a'}}
+      : {sphere:{scale:0.5, color:'#a8324a'}};
+    viewer.setStyle(sel, style);
+    viewer.removeAllLabels && viewer.removeAllLabels();
+    if($('mutLabel').checked){
+      try{
+        viewer.addResLabels(sel, {fontColor:'white', backgroundColor:'#a8324a',
+          backgroundOpacity:0.9, fontSize:12, showBackground:true});
+      }catch(e){}
+    }
+    viewer.render();
+    setStatus('✓ 모든 사슬의 '+resi+'번 아미노산을 강조했습니다. (HbS에서는 발린)', 'ok');
+  }
+  $('mutZoomBtn').addEventListener('click', ()=>{
+    if(!viewer) return;
+    const resi = parseInt(($('mutResi').value||'6'),10);
+    viewer.zoomTo({resi: resi});
+    viewer.render();
+  });
+  $('mutOffBtn').addEventListener('click', ()=>{
+    if(!viewer) return;
+    viewer.removeAllLabels && viewer.removeAllLabels();
+    applyStyle(); viewer.zoomTo(); viewer.render();
+    setStatus('강조를 해제했습니다.', '');
+  });
+
+  $('spinBtn').addEventListener('click', ()=>{
+    if(!viewer) return;
+    spinning = !spinning;
+    viewer.spin(spinning ? 'y' : false);
+  });
+  $('resetBtn').addEventListener('click', ()=>{
+    if(!viewer) return;
+    viewer.zoomTo(); viewer.render();
+  });
+
+  loadExample();
+})();
+</script>
+</body>
+</html>
